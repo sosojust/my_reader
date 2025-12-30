@@ -105,8 +105,8 @@ def parse_toc_recursive(toc_list, depth=0) -> List[TOCEntry]:
             section, children = item
             entry = TOCEntry(
                 title=section.title,
-                href=section.href,
-                file_href=section.href.split('#')[0],
+                href=unquote(section.href),
+                file_href=unquote(section.href.split('#')[0]),
                 anchor=section.href.split('#')[1] if '#' in section.href else "",
                 children=parse_toc_recursive(children, depth + 1)
             )
@@ -114,8 +114,8 @@ def parse_toc_recursive(toc_list, depth=0) -> List[TOCEntry]:
         elif isinstance(item, epub.Link):
             entry = TOCEntry(
                 title=item.title,
-                href=item.href,
-                file_href=item.href.split('#')[0],
+                href=unquote(item.href),
+                file_href=unquote(item.href.split('#')[0]),
                 anchor=item.href.split('#')[1] if '#' in item.href else ""
             )
             result.append(entry)
@@ -123,8 +123,8 @@ def parse_toc_recursive(toc_list, depth=0) -> List[TOCEntry]:
         elif isinstance(item, epub.Section):
              entry = TOCEntry(
                 title=item.title,
-                href=item.href,
-                file_href=item.href.split('#')[0],
+                href=unquote(item.href),
+                file_href=unquote(item.href.split('#')[0]),
                 anchor=item.href.split('#')[1] if '#' in item.href else ""
             )
              result.append(entry)
@@ -234,8 +234,9 @@ def process_epub(epub_path: str, output_dir: str) -> Book:
             soup = BeautifulSoup(raw_content, 'html.parser')
 
             # A. Fix Images
-            for img in soup.find_all('img'):
-                src = img.get('src', '')
+            for img in soup.find_all(['img', 'image']):
+                # EPUBs can use xlink:href in <image> tags (SVG)
+                src = img.get('src') or img.get('xlink:href') or img.get('href')
                 if not src: continue
 
                 # Decode URL (part01/image%201.jpg -> part01/image 1.jpg)
@@ -244,9 +245,25 @@ def process_epub(epub_path: str, output_dir: str) -> Book:
 
                 # Try to find in map
                 if src_decoded in image_map:
-                    img['src'] = image_map[src_decoded]
+                    new_src = image_map[src_decoded]
                 elif filename in image_map:
-                    img['src'] = image_map[filename]
+                    new_src = image_map[filename]
+                else:
+                    new_src = None
+                
+                if new_src:
+                    # Update the correct attribute
+                    if img.name == 'image':
+                        # Be robust: some parsers strip namespaces, some keep them.
+                        # We try to update all likely candidates.
+                        if img.has_attr('xlink:href'):
+                            img['xlink:href'] = new_src
+                        if img.has_attr('href'):
+                            img['href'] = new_src
+                        if img.has_attr('src'):
+                            img['src'] = new_src
+                    else:
+                        img['src'] = new_src
 
             # B. Clean HTML
             soup = clean_html_content(soup)
@@ -296,12 +313,17 @@ if __name__ == "__main__":
 
     import sys
     if len(sys.argv) < 2:
-        print("Usage: python reader3.py <file.epub>")
+        print("Usage: python reader3.py <file.epub> [output_dir]")
         sys.exit(1)
 
     epub_file = sys.argv[1]
     assert os.path.exists(epub_file), "File not found."
-    out_dir = os.path.splitext(epub_file)[0] + "_data"
+    
+    # Allow optional output directory argument
+    if len(sys.argv) >= 3:
+        out_dir = sys.argv[2]
+    else:
+        out_dir = os.path.splitext(epub_file)[0] + "_data"
 
     book_obj = process_epub(epub_file, out_dir)
     save_to_pickle(book_obj, out_dir)

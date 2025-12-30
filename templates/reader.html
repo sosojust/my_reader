@@ -9,9 +9,44 @@
         body { margin: 0; padding: 0; display: flex; height: 100vh; overflow: hidden; font-family: "Georgia", serif; background: #fff; }
 
         /* Sidebar */
-        #sidebar { width: 300px; background: #f8f9fa; border-right: 1px solid #e9ecef; overflow-y: auto; padding: 20px; flex-shrink: 0; }
+        #sidebar { width: 300px; background: #f8f9fa; border-right: 1px solid #e9ecef; overflow-y: auto; padding: 0; flex-shrink: 0; transition: margin-left 0.3s ease; }
+        .sidebar-sticky-header {
+            position: sticky;
+            top: 0;
+            background: #f8f9fa; /* Match sidebar bg */
+            z-index: 10;
+            padding: 20px 20px 10px 20px;
+            border-bottom: 1px solid #e9ecef;
+        }
+        .sidebar-content {
+            padding: 10px 20px 20px 20px;
+        }
+        
         .nav-header { font-family: -apple-system, sans-serif; font-weight: bold; color: #495057; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid #dee2e6; }
-        .nav-home { display: block; margin-bottom: 20px; color: #3498db; text-decoration: none; font-family: -apple-system, sans-serif; font-size: 0.9em; }
+        .nav-home { display: block; color: #3498db; text-decoration: none; font-family: -apple-system, sans-serif; font-size: 0.9em; }
+
+        /* Sidebar Collapsed State */
+        body.sidebar-collapsed #sidebar { margin-left: -340px; } /* 300px width + 40px padding */
+        
+        /* Floating Menu Button */
+        #sidebar-show-btn { 
+            position: fixed; 
+            top: 20px; 
+            left: 20px; 
+            z-index: 1000; 
+            display: none; 
+            background: rgba(255, 255, 255, 0.9); 
+            border: 1px solid #ddd; 
+            padding: 8px 12px; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            font-size: 1.2em;
+            color: #555;
+        }
+        body.sidebar-collapsed #sidebar-show-btn { display: block; }
+        #sidebar-show-btn:hover { background: #fff; color: #333; }
+
 
         /* TOC Tree */
         ul.toc-list { list-style: none; padding-left: 0; margin: 0; }
@@ -40,58 +75,70 @@
 </head>
 <body>
 
+    <!-- Floating Show Button -->
+    <button id="sidebar-show-btn" title="Show Sidebar">☰</button>
+
     <!-- SIDEBAR -->
     <div id="sidebar">
-        <a href="/" class="nav-home">← Back to Library</a>
-        <div class="nav-header">{{ book.metadata.title }}</div>
+        <div class="sidebar-sticky-header">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                <a href="/" class="nav-home">← Back to Library</a>
+                <button id="sidebar-hide-btn" style="background:none; border:none; cursor:pointer; color:#999; font-size:1.2em; padding:0 5px;" title="Collapse Sidebar">⇤</button>
+            </div>
+        </div>
+        
+        <div class="sidebar-content">
+            <div class="nav-header">{{ book.metadata.title }}</div>
 
-        <!-- Recursive Macro for TOC -->
-        {% macro render_toc(items) %}
-            <ul class="toc-list">
-            {% for item in items %}
-                <li class="toc-item">
-                    <!--
-                        Matching Logic:
-                        If the TOC item filename matches the current chapter filename, mark active.
-                        Ideally we match spine indices, but Reader 3 TOC maps to filenames.
-                        We use a simple hash matching logic here.
-                    -->
-                    {% set is_active = current_chapter.href == item.file_href %}
+            <!-- Recursive Macro for TOC -->
+            {% macro render_toc(items) %}
+                <ul class="toc-list">
+                {% for item in items %}
+                    <li class="toc-item">
+                        <!--
+                            Matching Logic:
+                            If the TOC item filename matches the current chapter filename, mark active.
+                            Ideally we match spine indices, but Reader 3 TOC maps to filenames.
+                            We use a simple hash matching logic here.
+                        -->
+                        {% set is_active = current_chapter.href == item.file_href %}
 
-                    <!--
-                       We need to find which linear chapter index (0, 1, 2) corresponds
-                       to this TOC entry file.
-                       Since that's hard to calculate in Jinja, we just link to the
-                       file anchor. BUT, to make our linear navigation work, we
-                       rely on the fact that the user is currently reading 'chapter_index'.
+                        <!--
+                        We need to find which linear chapter index (0, 1, 2) corresponds
+                        to this TOC entry file.
+                        Since that's hard to calculate in Jinja, we just link to the
+                        file anchor. BUT, to make our linear navigation work, we
+                        rely on the fact that the user is currently reading 'chapter_index'.
 
-                       Ideally, clicking a TOC link should find the 'index' of that file.
-                       For simplicity in this version: We link to the 'href' (filename)
-                       and let JavaScript or Backend handle it?
+                        Ideally, clicking a TOC link should find the 'index' of that file.
+                        For simplicity in this version: We link to the 'href' (filename)
+                        and let JavaScript or Backend handle it?
 
-                       Actually, let's just link to the file. The browser interprets #anchors.
-                       However, our router uses /read/book/INDEX.
+                        Actually, let's just link to the file. The browser interprets #anchors.
+                        However, our router uses /read/book/INDEX.
 
-                       SIMPLE FIX: We won't link the TOC to the route index in this simple version
-                       unless we build a map. We will visually show structure,
-                       but rely on "Previous/Next" for linear reading.
+                        SIMPLE FIX: We won't link the TOC to the route index in this simple version
+                        unless we build a map. We will visually show structure,
+                        but rely on "Previous/Next" for linear reading.
 
-                       BETTER FIX: Use JavaScript to match filenames.
-                    -->
-                    <a href="#" onclick="findAndGo('{{ item.file_href }}')"
-                       class="toc-link {% if is_active %}active{% endif %}">
-                        {{ item.title }}
-                    </a>
+                        BETTER FIX: Use JavaScript to match filenames.
+                        -->
+                        <a href="#" onclick="findAndGo('{{ item.file_href }}')"
+                        class="toc-link {% if is_active %}active{% endif %}">
+                            {{ item.title }}
+                        </a>
 
-                    {% if item.children %}
-                        {{ render_toc(item.children) }}
-                    {% endif %}
-                </li>
-            {% endfor %}
-            </ul>
-        {% endmacro %}
+                        {% if item.children %}
+                            {{ render_toc(item.children) }}
+                        {% endif %}
+                    </li>
+                {% endfor %}
+                </ul>
+            {% endmacro %}
 
-        {{ render_toc(book.toc) }}
+            {{ render_toc(book.toc) }}
+        </div>
+    </div>
     </div>
 
     <!-- MAIN CONTENT -->
@@ -122,7 +169,65 @@
     </div>
 
     <script>
-        // Helper to map TOC filenames to Spine Indices
+        // --- UI Interaction Logic (Placed first to ensure it runs even if data mapping fails) ---
+        document.addEventListener("DOMContentLoaded", function() {
+            console.log("Reader UI initialized");
+            
+            // --- Sidebar Toggle Logic ---
+            const body = document.body;
+            const hideBtn = document.getElementById("sidebar-hide-btn");
+            const showBtn = document.getElementById("sidebar-show-btn");
+
+            // Restore state
+            if (localStorage.getItem("sidebarCollapsed") === "true") {
+                body.classList.add("sidebar-collapsed");
+            }
+
+            if (hideBtn) {
+                hideBtn.addEventListener("click", function(e) {
+                    console.log("Hide sidebar clicked");
+                    e.preventDefault(); // Prevent default button behavior
+                    body.classList.add("sidebar-collapsed");
+                    localStorage.setItem("sidebarCollapsed", "true");
+                });
+            } else {
+                console.error("Sidebar hide button not found!");
+            }
+
+            if (showBtn) {
+                showBtn.addEventListener("click", function(e) {
+                    console.log("Show sidebar clicked");
+                    e.preventDefault();
+                    body.classList.remove("sidebar-collapsed");
+                    localStorage.setItem("sidebarCollapsed", "false");
+                });
+            }
+
+            // --- Scroll Logic ---
+            const sidebar = document.getElementById("sidebar");
+            const savedPos = sessionStorage.getItem("sidebarScroll");
+            if (savedPos) {
+                sidebar.scrollTop = savedPos;
+            }
+            
+            // Save scroll position before leaving page
+            window.addEventListener("beforeunload", function() {
+                if (sidebar) {
+                    sessionStorage.setItem("sidebarScroll", sidebar.scrollTop);
+                }
+            });
+            
+            // Also try to scroll active TOC item into view if it's not visible
+            const activeLink = document.querySelector(".toc-link.active");
+            if (activeLink && sidebar) {
+                 if (!savedPos) {
+                     activeLink.scrollIntoView({ block: "center", behavior: "auto" });
+                 }
+            }
+        });
+
+        // --- Data & Navigation Logic ---
+        
         // Pass the spine data from python to JS
         const spineMap = {
             {% for ch in book.spine %}
@@ -130,14 +235,46 @@
             {% endfor %}
         };
 
+        // Also build a basename map for fuzzy matching
+        const basenameMap = {
+            {% for ch in book.spine %}
+            "{{ ch.href.split('/')[-1] }}": {{ ch.order }},
+            {% endfor %}
+        };
+
         function findAndGo(filename) {
-            // The TOC usually has specific filenames e.g. "text/part001.html"
             // Sometimes it has anchors "text/part001.html#header"
+            
+            // Decode in case the filename passed is URL encoded
+            try {
+                filename = decodeURIComponent(filename);
+            } catch (e) {
+                console.warn("Could not decode filename:", filename);
+            }
+
             // We strip the anchor to find the page index
             const cleanFile = filename.split('#')[0];
             const anchor = filename.split('#')[1];
 
-            const idx = spineMap[cleanFile];
+            console.log("Navigating to:", cleanFile, "Anchor:", anchor);
+            
+            // 1. Try exact match
+            let idx = spineMap[cleanFile];
+
+            // 2. If not found, try to clean up relative paths like "../OEBPS/file.html" -> "OEBPS/file.html"
+            if (idx === undefined) {
+                 // Try removing '../' prefix which is common in some EPUB TOCs
+                 const simplePath = cleanFile.replace(/^\.\.\//, '');
+                 idx = spineMap[simplePath];
+                 if (idx !== undefined) console.log("Found via simple path cleanup:", simplePath);
+            }
+
+            // 3. If still not found, try basename match (risky if duplicates exist, but better than nothing)
+            if (idx === undefined) {
+                const basename = cleanFile.split('/').pop();
+                idx = basenameMap[basename];
+                if (idx !== undefined) console.log("Found via basename match:", basename);
+            }
 
             if (idx !== undefined) {
                 let url = "/read/{{ book_id }}/" + idx;
@@ -146,7 +283,9 @@
                 // Let's just go to the page.
                 window.location.href = url;
             } else {
-                console.log("Could not find index for", filename);
+                console.log("Could not find index for", cleanFile);
+                console.log("Available spine items:", Object.keys(spineMap));
+                alert("Could not jump to chapter: " + cleanFile + "\n(Check console for details)");
             }
         }
     </script>

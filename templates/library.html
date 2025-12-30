@@ -14,11 +14,101 @@
         .book-meta { color: #666; font-size: 0.9em; margin-bottom: 15px; }
         .btn { display: inline-block; background: #3498db; color: white; text-decoration: none; padding: 8px 15px; border-radius: 4px; font-size: 0.9em; }
         .btn:hover { background: #2980b9; }
+
+        /* Upload Section Styles */
+        .upload-card {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            margin: 30px 0;
+            text-align: center;
+            border: 2px dashed #e0e0e0;
+            transition: border-color 0.3s;
+        }
+        .upload-card:hover { border-color: #3498db; }
+        .upload-form {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+        }
+        .file-input-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+        }
+        .file-input-wrapper input[type=file] {
+            font-size: 100px;
+            position: absolute;
+            left: 0;
+            top: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+        .file-custom-btn {
+            background: #f8f9fa;
+            color: #555;
+            border: 1px solid #ddd;
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-weight: 500;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .file-custom-btn:hover { background: #e9ecef; }
+        .upload-btn {
+            background: #2ecc71;
+            color: white;
+            border: none;
+            padding: 10px 30px;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.2s;
+            font-size: 1em;
+        }
+        .upload-btn:hover { background: #27ae60; }
+        .upload-hint { color: #999; font-size: 0.9em; margin-top: 5px; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Library</h1>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 2px solid #eee; padding-bottom: 15px;">
+            <h1 style="border: none; margin: 0; padding: 0;">My Library</h1>
+            <span style="color: #999; font-size: 0.9em;">Reader 3.0</span>
+        </div>
+
+        <!-- Upload Section -->
+        <div class="upload-card">
+            <form action="/upload" method="post" enctype="multipart/form-data" class="upload-form">
+                <div style="font-size: 1.1em; font-weight: bold; color: #444; margin-bottom: 5px;">Add New Book</div>
+                <div class="upload-hint">Select an .epub file to add to your library</div>
+                
+                <div style="display: flex; gap: 10px; margin-top: 10px;">
+                    <div class="file-input-wrapper">
+                        <button type="button" class="file-custom-btn">📂 Choose File</button>
+                        <input id="file-upload" type="file" name="file" accept=".epub" required onchange="updateFileName(this)">
+                    </div>
+                    <button type="submit" class="upload-btn">Upload</button>
+                </div>
+                <div id="file-name-display" style="color: #3498db; font-size: 0.9em; height: 1.2em;"></div>
+            </form>
+        </div>
+
+        <script>
+            function updateFileName(input) {
+                const display = document.getElementById('file-name-display');
+                if (input.files && input.files.length > 0) {
+                    display.textContent = input.files[0].name;
+                } else {
+                    display.textContent = "";
+                }
+            }
+        </script>
 
         {% if not books %}
             <p>No processed books found. Run <code>reader3.py</code> on an epub first.</p>

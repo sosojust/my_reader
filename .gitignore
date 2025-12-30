@@ -8,7 +8,19 @@ wheels/
 
 # Virtual environments
 .venv
+venv/
+env/
 
-# Custom
+# IDE & OS
+.idea/
+.vscode/
+.trae/
+.DS_Store
+
+# Project Data Directories (Generated or User Uploaded)
 *_data/
+epub_resource/
+epub_parse_data/
+
+# Local files
 *.epub

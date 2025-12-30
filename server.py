@@ -3,18 +3,26 @@ import pickle
 from functools import lru_cache
 from typing import Optional
 
-from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi import FastAPI, Request, HTTPException, UploadFile, File
+from fastapi.responses import HTMLResponse, FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from reader3 import Book, BookMetadata, ChapterContent, TOCEntry
+from reader3 import Book, BookMetadata, ChapterContent, TOCEntry, process_epub, save_to_pickle
 
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 
 # Where are the book folders located?
 BOOKS_DIR = "."
+# Where to store uploaded raw EPUB files
+UPLOAD_DIR = "epub_resource"
+# Where to store processed book data
+DATA_DIR = "epub_parse_data"
+
+# Ensure directories exist
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+os.makedirs(DATA_DIR, exist_ok=True)
 
 @lru_cache(maxsize=10)
 def load_book_cached(folder_name: str) -> Optional[Book]:
@@ -22,7 +30,7 @@ def load_book_cached(folder_name: str) -> Optional[Book]:
     Loads the book from the pickle file.
     Cached so we don't re-read the disk on every click.
     """
-    file_path = os.path.join(BOOKS_DIR, folder_name, "book.pkl")
+    file_path = os.path.join(DATA_DIR, folder_name, "book.pkl")
     if not os.path.exists(file_path):
         return None
 
@@ -40,9 +48,9 @@ async def library_view(request: Request):
     books = []
 
     # Scan directory for folders ending in '_data' that have a book.pkl
-    if os.path.exists(BOOKS_DIR):
-        for item in os.listdir(BOOKS_DIR):
-            if item.endswith("_data") and os.path.isdir(item):
+    if os.path.exists(DATA_DIR):
+        for item in os.listdir(DATA_DIR):
+            if item.endswith("_data") and os.path.isdir(os.path.join(DATA_DIR, item)):
                 # Try to load it to get the title
                 book = load_book_cached(item)
                 if book:
@@ -54,6 +62,32 @@ async def library_view(request: Request):
                     })
 
     return templates.TemplateResponse("library.html", {"request": request, "books": books})
+
+@app.post("/upload")
+async def upload_epub(file: UploadFile = File(...)):
+    """Handle EPUB file upload and processing."""
+    if not file.filename.lower().endswith(".epub"):
+        raise HTTPException(status_code=400, detail="Only .epub files are supported")
+    
+    # Save uploaded file temporarily
+    file_path = os.path.join(UPLOAD_DIR, file.filename)
+    try:
+        with open(file_path, "wb") as f:
+            content = await file.read()
+            f.write(content)
+            
+        # Process the EPUB
+        # Output directory is now in DATA_DIR
+        out_dir = os.path.join(DATA_DIR, os.path.splitext(file.filename)[0] + "_data")
+        
+        book_obj = process_epub(file_path, out_dir)
+        save_to_pickle(book_obj, out_dir)
+        
+    except Exception as e:
+        print(f"Error processing upload: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to process EPUB: {str(e)}")
+        
+    return RedirectResponse(url="/", status_code=303)
 
 @app.get("/read/{book_id}", response_class=HTMLResponse)
 async def redirect_to_first_chapter(book_id: str):
@@ -97,7 +131,7 @@ async def serve_image(book_id: str, image_name: str):
     safe_book_id = os.path.basename(book_id)
     safe_image_name = os.path.basename(image_name)
 
-    img_path = os.path.join(BOOKS_DIR, safe_book_id, "images", safe_image_name)
+    img_path = os.path.join(DATA_DIR, safe_book_id, "images", safe_image_name)
 
     if not os.path.exists(img_path):
         raise HTTPException(status_code=404, detail="Image not found")
