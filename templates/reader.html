@@ -150,7 +150,7 @@
 
             <div class="chapter-nav">
                 {% if prev_idx is not none %}
-                    <a href="/read/{{ book_id }}/{{ prev_idx }}" class="nav-btn">← Previous</a>
+                    <a id="prev-chapter-link" href="/read/{{ book_id }}/{{ prev_idx }}" class="nav-btn">← Previous</a>
                 {% else %}
                     <span class="nav-btn disabled">← Previous</span>
                 {% endif %}
@@ -160,7 +160,7 @@
                 </span>
 
                 {% if next_idx is not none %}
-                    <a href="/read/{{ book_id }}/{{ next_idx }}" class="nav-btn">Next →</a>
+                    <a id="next-chapter-link" href="/read/{{ book_id }}/{{ next_idx }}" class="nav-btn">Next →</a>
                 {% else %}
                     <span class="nav-btn disabled">Next →</span>
                 {% endif %}
@@ -173,6 +173,26 @@
         document.addEventListener("DOMContentLoaded", function() {
             console.log("Reader UI initialized");
             
+            // --- Keyboard Navigation ---
+            document.addEventListener("keydown", function(e) {
+                // Ignore if user is typing in an input (unlikely here but good practice)
+                if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+                if (e.key === "ArrowLeft") {
+                    const prev = document.getElementById("prev-chapter-link");
+                    if (prev) {
+                        console.log("ArrowLeft pressed, navigating to prev");
+                        prev.click();
+                    }
+                } else if (e.key === "ArrowRight") {
+                    const next = document.getElementById("next-chapter-link");
+                    if (next) {
+                        console.log("ArrowRight pressed, navigating to next");
+                        next.click();
+                    }
+                }
+            });
+
             // --- Sidebar Toggle Logic ---
             const body = document.body;
             const hideBtn = document.getElementById("sidebar-hide-btn");
