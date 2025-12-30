@@ -205,12 +205,16 @@ def process_pdf(pdf_path: str, output_dir: str) -> Book:
     # 4. Process Pages
     print("Processing pages...")
     for i, page in enumerate(doc):
-        # Render page to image
-        pix = page.get_pixmap(matrix=fitz.Matrix(2, 2)) # 2x zoom for better quality
-        image_filename = f"page_{i+1}.png"
-        image_path = os.path.join(images_dir, image_filename)
-        pix.save(image_path)
+        # Render page to SVG (Vector) for selectable text
+        # text_as_path=False ensures text remains as <text> elements
+        svg_text = page.get_svg_image(matrix=fitz.Matrix(1, 1), text_as_path=False)
         
+        # Save SVG to file
+        image_filename = f"page_{i+1}.svg"
+        image_path = os.path.join(images_dir, image_filename)
+        with open(image_path, "w", encoding="utf-8") as f:
+            f.write(svg_text)
+            
         rel_path = f"images/{image_filename}"
         image_map[image_filename] = rel_path
 
@@ -218,10 +222,23 @@ def process_pdf(pdf_path: str, output_dir: str) -> Book:
         text = page.get_text()
 
         # Create Content
-        # We wrap the image in a simple HTML structure
+        # Use <object> tag to embed SVG file while maintaining interactivity (text selection)
+        # We need to ensure the object takes full width
         content_html = f'''
         <div style="text-align: center;">
-            <img src="{rel_path}" style="max-width: 100%; height: auto;" />
+            <object data="{rel_path}" type="image/svg+xml" style="width: 100%; height: auto; pointer-events: none;">
+                <img src="{rel_path}" alt="Page {i+1}" />
+            </object>
+        </div>
+        '''
+        # Note: pointer-events: none might disable selection? 
+        # Actually we WANT selection. So remove pointer-events: none.
+        # But if we use object, the click events for navigation (if any) might be intercepted.
+        # However, our navigation is outside the content div. So it should be fine.
+        
+        content_html = f'''
+        <div style="text-align: center;">
+            <object data="{rel_path}" type="image/svg+xml" style="max-width: 100%; width: 100%; height: auto;"></object>
         </div>
         '''
 
