@@ -3,109 +3,90 @@
 ![my_reader](my_reader.png)
 
 一个轻量级的、自托管的 EPUB/PDF 阅读器，支持按章节阅读 EPUB 和 PDF 书籍。
-来自 karpathy 的项目[reader](https://github.com/karpathy/reader3/)，修改了一些功能。
+来自 karpathy 的项目[reader](https://github.com/karpathy/reader3/)，修改了一些功能，并增加了用户系统。
 
 ## 项目架构
 
-- `reader3.py`: 核心处理脚本。负责解析 EPUB/PDF 文件，提取章节内容和元数据，并将其序列化存储到本地目录。支持命令行参数指定输出目录。
-- `server.py`: Web 服务器。基于 FastAPI，提供书籍列表、上传接口和阅读界面。
-- `templates/`: 存放 HTML 模板文件（`library.html`, `reader.html`）。
-- `epub_resource/`: 存放用户上传的原始 EPUB/PDF 文件。
-- `epub_parse_data/`: 存放解析后的书籍数据（Pickle 文件和图片资源）。
-- `requirements.txt`: 项目依赖列表。
+- `app/`: 应用核心代码
+  - `main.py`: 应用入口
+  - `models.py`: 数据库模型
+  - `schemas.py`: Pydantic 数据模型
+  - `database.py`: 数据库连接
+  - `auth.py`: 认证逻辑
+  - `config.py`: 配置管理
+  - `routers/`: 路由模块
+  - `core/`: 核心业务逻辑
+- `reader3.py`: 核心解析脚本（遗留/工具脚本）
+- `templates/`: HTML 模板
+- `schema/`: 数据库 SQL 脚本
+- `epub_resource/`: 存放用户上传的原始文件（使用 UUID 重命名存储）
+- `epub_parse_data/`: 存放解析后的书籍数据（使用 UUID 目录隔离）
+- `.env`: 环境变量配置
 
 ## 项目依赖
 
 本项目依赖以下 Python 包：
-- `beautifulsoup4`: HTML 解析
-- `ebooklib`: EPUB 处理
-- `pymupdf`: PDF 处理
-- `fastapi`: Web 框架
-- `jinja2`: 模板引擎
-- `uvicorn`: ASGI 服务器
-- `python-multipart`: 处理文件上传
+- `beautifulsoup4`, `ebooklib`, `pymupdf`: 文件解析
+- `fastapi`, `uvicorn`, `jinja2`, `python-multipart`: Web 框架
+- `sqlalchemy`, `pymysql`: 数据库 ORM 和驱动
+- `python-dotenv`: 环境变量
+- `passlib[bcrypt]`, `python-jose[cryptography]`: 认证安全
 
-详细依赖见 `requirements.txt`。
+## 快速开始
 
-## Usage (使用说明)
+### 1. 环境准备
 
-### 方式一：使用 uv (推荐)
-
-本项目使用 [uv](https://docs.astral.sh/uv/)。例如，将 [my_book]下载到此目录并重命名为 `my_book.epub`，然后运行：
+确保已安装 Python 3.10+ 和 MySQL 数据库。
 
 ```bash
-uv run reader3.py my_book.epub
+# 创建并激活虚拟环境 (推荐)
+conda create -n epub python=3.13
+conda activate epub
+
+# 安装依赖
+pip install -r requirements.txt
 ```
 
-这将创建 `my_book_data` 目录，从而将书籍注册到您的本地书库。然后我们可以运行服务器：
+### 2. 配置数据库
 
+1. 创建 MySQL 数据库（例如 `my_reader_db`）。
+2. 复制 `.env.example` 为 `.env` 并配置数据库连接信息：
+
+```ini
+DATABASE_URL=mysql+pymysql://root:password@localhost:3306/my_reader_db
+SECRET_KEY=your_secret_key_here
+```
+
+3. 初始化数据库表结构：
+   执行 `schema/01_init.sql` 中的 SQL 语句创建表。
+
+### 3. 启动服务器
+
+**常规启动：**
 ```bash
-uv run server.py
+python -m app.main
+```
+或者
+```bash
+uvicorn app.main:app --host 0.0.0.0 --port 8123 --reload
 ```
 
-### 方式二：使用 pip (标准 Python 环境)
+**一键启动 (Conda 环境)：**
+```bash
+conda activate epub && uvicorn app.main:app --host 0.0.0.0 --port 8123 --reload
+```
 
-1. 安装依赖：
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-2. 启动服务器：
-   ```bash
-   python server.py
-   ```
-   
-   启动后，可以直接在浏览器中上传书籍。
-
-3. (可选) 手动处理书籍：
-   ```bash
-   python reader3.py my_book.epub
-   ```
-
-### 方式三：使用 Conda (虚拟环境)
-
-1. 创建并激活虚拟环境：
-   ```bash
-   conda create -n epub python=3.13
-   conda activate epub
-   ```
-
-2. 安装依赖：
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. 启动服务器：
-   ```bash
-   python server.py
-   ```
+访问地址：http://localhost:8123
 
 ## 功能特性
 
-- **EPUB/PDF 上传**：在 Library 页面直接上传 EPUB 或 PDF 文件，自动解析并添加到书架。
+- **用户系统**：支持用户注册、登录。
+- **权限隔离**：用户只能查看自己上传的书籍。
+- **EPUB/PDF 上传**：自动解析并添加到个人书架。
+- **文件隔离**：使用 UUID 存储文件，解决同名文件冲突问题。
 - **目录导航**：支持复杂的 EPUB/PDF 目录跳转。
-- **阅读状态保持**：刷新页面或跳转目录后，侧边栏滚动位置保持不变。
-- **侧边栏折叠**：支持隐藏/显示侧边栏，提供沉浸式阅读体验。
-- **资源管理**：自动提取 EPUB/PDF 中的图片资源（包括封面），并处理路径引用。
-
-## 项目配置
-
-- 默认端口：8123
-- 上传目录：`epub_resource/`
-- 数据目录：`epub_parse_data/` (通过 Web 上传时) 或 `*_data` (通过 CLI 运行时默认)
+- **SVG 矢量阅读**：PDF 使用 SVG 渲染，支持文字选择。
 
 ## License
 
 MIT
-
-## 变更记录
-
-- 2025-12-30:
-    - 新增 PDF 支持：支持上传、解析（基于 PyMuPDF）和阅读 PDF 文件。
-    - 修复 EPUB 封面图片加载问题（增强 SVG/xlink 兼容性）。
-    - 新增 Web 端 EPUB/PDF 上传功能，支持自动解析。
-    - 优化文件存储结构：新增 `epub_resource` 和 `epub_parse_data` 目录。
-    - 增加侧边栏折叠功能。
-    - 优化侧边栏滚动体验（状态保持）。
-    - 修复目录跳转路径问题（支持 URL 编码路径）。
-    - 添加 requirements.txt，完善 README.md 文档（项目架构、依赖、启动方式）。
