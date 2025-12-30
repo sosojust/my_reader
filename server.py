@@ -8,7 +8,7 @@ from fastapi.responses import HTMLResponse, FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from reader3 import Book, BookMetadata, ChapterContent, TOCEntry, process_epub, save_to_pickle
+from reader3 import Book, BookMetadata, ChapterContent, TOCEntry, process_epub, process_pdf, save_to_pickle
 
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
@@ -64,10 +64,11 @@ async def library_view(request: Request):
     return templates.TemplateResponse("library.html", {"request": request, "books": books})
 
 @app.post("/upload")
-async def upload_epub(file: UploadFile = File(...)):
-    """Handle EPUB file upload and processing."""
-    if not file.filename.lower().endswith(".epub"):
-        raise HTTPException(status_code=400, detail="Only .epub files are supported")
+async def upload_file(file: UploadFile = File(...)):
+    """Handle EPUB and PDF file upload and processing."""
+    filename = file.filename.lower()
+    if not (filename.endswith(".epub") or filename.endswith(".pdf")):
+        raise HTTPException(status_code=400, detail="Only .epub and .pdf files are supported")
     
     # Save uploaded file temporarily
     file_path = os.path.join(UPLOAD_DIR, file.filename)
@@ -76,16 +77,20 @@ async def upload_epub(file: UploadFile = File(...)):
             content = await file.read()
             f.write(content)
             
-        # Process the EPUB
+        # Process the File
         # Output directory is now in DATA_DIR
         out_dir = os.path.join(DATA_DIR, os.path.splitext(file.filename)[0] + "_data")
         
-        book_obj = process_epub(file_path, out_dir)
+        if filename.endswith(".epub"):
+            book_obj = process_epub(file_path, out_dir)
+        else: # PDF
+            book_obj = process_pdf(file_path, out_dir)
+
         save_to_pickle(book_obj, out_dir)
         
     except Exception as e:
         print(f"Error processing upload: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to process EPUB: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to process file: {str(e)}")
         
     return RedirectResponse(url="/", status_code=303)
 

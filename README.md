@@ -3,7 +3,7 @@
 ![my_reader](my_reader.png)
 
 一个轻量级的、自托管的 EPUB 阅读器，支持按章节阅读 EPUB 书籍。
-来自
+来自 karpathy 的项目[reader](https://github.com/karpathy/reader3/)，修改了一些功能。
 
 ## 项目架构
 

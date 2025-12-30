@@ -86,12 +86,12 @@
         <div class="upload-card">
             <form action="/upload" method="post" enctype="multipart/form-data" class="upload-form">
                 <div style="font-size: 1.1em; font-weight: bold; color: #444; margin-bottom: 5px;">Add New Book</div>
-                <div class="upload-hint">Select an .epub file to add to your library</div>
+                <div class="upload-hint">Select an .epub or .pdf file to add to your library</div>
                 
                 <div style="display: flex; gap: 10px; margin-top: 10px;">
                     <div class="file-input-wrapper">
                         <button type="button" class="file-custom-btn">📂 Choose File</button>
-                        <input id="file-upload" type="file" name="file" accept=".epub" required onchange="updateFileName(this)">
+                        <input id="file-upload" type="file" name="file" accept=".epub,.pdf" required onchange="updateFileName(this)">
                     </div>
                     <button type="submit" class="upload-btn">Upload</button>
                 </div>

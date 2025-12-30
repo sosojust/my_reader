@@ -13,6 +13,7 @@ from urllib.parse import unquote
 import ebooklib
 from ebooklib import epub
 from bs4 import BeautifulSoup, Comment
+import fitz  # PyMuPDF
 
 # --- Data structures ---
 
@@ -168,6 +169,148 @@ def extract_metadata_robust(book_obj) -> BookMetadata:
         identifiers=get_list('identifier'),
         subjects=get_list('subject')
     )
+
+
+def process_pdf(pdf_path: str, output_dir: str) -> Book:
+    """
+    Parses a PDF file into a structured Book object.
+    Each page is treated as a chapter/image.
+    """
+    # 1. Load PDF
+    print(f"Loading {pdf_path}...")
+    doc = fitz.open(pdf_path)
+
+    # 2. Extract Metadata
+    metadata = BookMetadata(
+        title=doc.metadata.get('title') or os.path.basename(pdf_path),
+        language="en", # Default
+        authors=[doc.metadata.get('author')] if doc.metadata.get('author') else [],
+        description=doc.metadata.get('subject'),
+        publisher=doc.metadata.get('producer'),
+        date=doc.metadata.get('creationDate'),
+        identifiers=[],
+        subjects=doc.metadata.get('keywords', '').split(',') if doc.metadata.get('keywords') else []
+    )
+
+    # 3. Prepare Output Directories
+    if os.path.exists(output_dir):
+        shutil.rmtree(output_dir)
+    images_dir = os.path.join(output_dir, 'images')
+    os.makedirs(images_dir, exist_ok=True)
+
+    image_map = {}
+    spine_chapters = []
+    toc_structure = []
+
+    # 4. Process Pages
+    print("Processing pages...")
+    for i, page in enumerate(doc):
+        # Render page to image
+        pix = page.get_pixmap(matrix=fitz.Matrix(2, 2)) # 2x zoom for better quality
+        image_filename = f"page_{i+1}.png"
+        image_path = os.path.join(images_dir, image_filename)
+        pix.save(image_path)
+        
+        rel_path = f"images/{image_filename}"
+        image_map[image_filename] = rel_path
+
+        # Extract text for search/LLM
+        text = page.get_text()
+
+        # Create Content
+        # We wrap the image in a simple HTML structure
+        content_html = f'''
+        <div style="text-align: center;">
+            <img src="{rel_path}" style="max-width: 100%; height: auto;" />
+        </div>
+        '''
+
+        chapter_id = f"page_{i+1}"
+        chapter_title = f"Page {i+1}"
+        
+        chapter = ChapterContent(
+            id=chapter_id,
+            href=chapter_id,
+            title=chapter_title,
+            content=content_html,
+            text=text,
+            order=i
+        )
+        spine_chapters.append(chapter)
+        
+        # Add to TOC (flat structure for now)
+        # Or maybe only add every 10 pages or utilize PDF outline if available?
+        # For now, let's add every page to TOC is too much? 
+        # Let's try to get PDF TOC (outline)
+    
+    # 5. Process TOC from PDF Outline
+    print("Parsing Table of Contents...")
+    pdf_toc = doc.get_toc()
+    if pdf_toc:
+        # pdf_toc is list of [lvl, title, page_num, dest]
+        def build_toc(toc_items, current_idx=0, current_level=1):
+            result = []
+            while current_idx < len(toc_items):
+                item = toc_items[current_idx]
+                lvl = item[0]
+                title = item[1]
+                page_num = item[2]
+                
+                if lvl < current_level:
+                    return result, current_idx
+                
+                if lvl == current_level:
+                    # Create entry
+                    # Page num is 1-based in get_toc
+                    target_page_idx = page_num - 1
+                    if 0 <= target_page_idx < len(spine_chapters):
+                        # Link to the page chapter
+                        entry = TOCEntry(
+                            title=title,
+                            href=spine_chapters[target_page_idx].href,
+                            file_href=spine_chapters[target_page_idx].href,
+                            anchor=""
+                        )
+                        current_idx += 1
+                        # Check for children
+                        children, next_idx = build_toc(toc_items, current_idx, current_level + 1)
+                        entry.children = children
+                        result.append(entry)
+                        current_idx = next_idx
+                    else:
+                        current_idx += 1
+                else:
+                    # Should be handled by recursive call
+                     return result, current_idx
+            return result, current_idx
+
+        toc_structure, _ = build_toc(pdf_toc)
+    
+    # Fallback TOC if empty
+    if not toc_structure:
+        # Create a simple TOC: Page 1, Page 10, Page 20...
+        for i in range(0, len(spine_chapters), 10): # Every 10 pages
+             chapter = spine_chapters[i]
+             toc_structure.append(TOCEntry(
+                 title=chapter.title,
+                 href=chapter.href,
+                 file_href=chapter.href,
+                 anchor=""
+             ))
+
+    doc.close()
+
+    # 6. Final Assembly
+    final_book = Book(
+        metadata=metadata,
+        spine=spine_chapters,
+        toc=toc_structure,
+        images=image_map,
+        source_file=os.path.basename(pdf_path),
+        processed_at=datetime.now().isoformat()
+    )
+
+    return final_book
 
 
 # --- Main Conversion Logic ---
