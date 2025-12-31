@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime
+from sqlalchemy import Column, Integer, String, DateTime, Text
 from sqlalchemy.sql import func
 from .database import Base
 
@@ -16,6 +16,12 @@ class Book(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String(255), nullable=False)
+    author = Column(String(255), nullable=True)
+    publisher = Column(String(255), nullable=True)
+    published_date = Column(String(50), nullable=True)
+    description = Column(Text, nullable=True)
+    language = Column(String(10), nullable=True)
+    sections_count = Column(Integer, default=0)
     folder_name = Column(String(255), nullable=False)
     user_id = Column(Integer, index=True, nullable=False)
     created_at = Column(DateTime, server_default=func.now())

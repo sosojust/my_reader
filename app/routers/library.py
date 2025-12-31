@@ -90,10 +90,27 @@ async def upload_file(
         save_to_pickle(book_obj, out_dir)
         
         # Save to DB
-        # Check if book already exists for this user? Or allow duplicates?
-        # For now, just add a new record.
+        # Determine the title
+        # Default to original filename (without extension)
+        display_title = os.path.splitext(file.filename)[0]
+
+        # If metadata has a valid title, and it's not the auto-generated UUID filename, use it.
+        # process_pdf falls back to os.path.basename(file_path) which is the UUID filename.
+        saved_basename = os.path.basename(file_path) # e.g. uuid.pdf
+
+        if book_obj.metadata.title:
+            meta_title = book_obj.metadata.title.strip()
+            if meta_title and meta_title != saved_basename and meta_title != "Untitled":
+                display_title = meta_title
+
         new_book = models.Book(
-            title=os.path.splitext(file.filename)[0],
+            title=display_title,
+            author=", ".join(book_obj.metadata.authors) if book_obj.metadata.authors else None,
+            publisher=book_obj.metadata.publisher,
+            published_date=book_obj.metadata.date,
+            description=book_obj.metadata.description,
+            language=book_obj.metadata.language,
+            sections_count=len(book_obj.spine),
             folder_name=folder_name,
             user_id=current_user.id
         )
