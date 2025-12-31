@@ -30,19 +30,13 @@ async def library_view(
     
     books_data = []
     for db_book in user_books:
-        # Load metadata from pickle
-        # Note: We rely on the folder_name stored in DB
-        book_obj = load_book_cached(db_book.folder_name)
-        if book_obj:
-            books_data.append({
-                "id": db_book.folder_name, # The folder name is the ID used in URLs
-                "title": db_book.title, # Use title from DB or Pickle? DB is faster for list
-                "author": ", ".join(book_obj.metadata.authors),
-                "chapters": len(book_obj.spine)
-            })
-        else:
-            # Book data missing on disk?
-            pass
+        # Load metadata directly from DB
+        books_data.append({
+            "id": db_book.folder_name, # The folder name is the ID used in URLs
+            "title": db_book.title,
+            "author": db_book.author or "Unknown Author",
+            "chapters": db_book.sections_count or 0
+        })
 
     return templates.TemplateResponse("library.html", {
         "request": request, 
